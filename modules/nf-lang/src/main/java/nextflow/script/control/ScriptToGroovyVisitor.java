@@ -42,6 +42,7 @@ import org.codehaus.groovy.ast.CodeVisitorSupport;
 import org.codehaus.groovy.ast.MethodNode;
 import org.codehaus.groovy.ast.Parameter;
 import org.codehaus.groovy.ast.VariableScope;
+import org.codehaus.groovy.ast.expr.ArgumentListExpression;
 import org.codehaus.groovy.ast.expr.BinaryExpression;
 import org.codehaus.groovy.ast.expr.DeclarationExpression;
 import org.codehaus.groovy.ast.expr.Expression;
@@ -90,6 +91,9 @@ public class ScriptToGroovyVisitor extends ScriptVisitorSupport {
     public void visit() {
         if( moduleNode == null )
             return;
+
+        if( moduleNode.isTypingEnabled() )
+            moduleNode.addStatement(stmt(callThisX("enableTyping", new ArgumentListExpression())));
 
         var declarations = moduleNode.getDeclarations();
 

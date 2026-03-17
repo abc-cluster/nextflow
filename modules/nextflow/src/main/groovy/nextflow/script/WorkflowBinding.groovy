@@ -20,7 +20,10 @@ import groovy.transform.CompileStatic
 import groovy.transform.PackageScope
 import groovy.util.logging.Slf4j
 import groovyx.gpars.dataflow.DataflowWriteChannel
+import org.codehaus.groovy.runtime.InvokerHelper
 import nextflow.NF
+import nextflow.dataflow.ChannelImpl
+import nextflow.dataflow.ValueImpl
 import nextflow.exception.IllegalInvocationException
 import nextflow.exception.ScriptRuntimeException
 import nextflow.extension.CH
@@ -102,15 +105,24 @@ class WorkflowBinding extends Binding  {
             final component = getComponent0(name)
             if( component ) {
                 checkScope0(component)
-                return component.invoke_o(args)
+                return invoke0(component, args)
             }
 
             // check it's an operator name
-            if( NF.hasOperator(name) )
+            if( !owner?.isTypingEnabled() && NF.hasOperator(name) )
                 return OpCall.create(name, args)
         }
 
         throw new MissingMethodException(name,this.getClass())
+    }
+
+    private Object invoke0(ComponentDef component, Object args0) {
+        final componentTyped = component instanceof WorkflowDef && component.getOwner().isTypingEnabled()
+        final args = InvokerHelper.asArray(args0).stream()
+            .map(arg -> DataflowTypeHelper.normalize(arg, componentTyped))
+            .toArray()
+        final result = component.invoke_a(args)
+        return DataflowTypeHelper.normalize(result, owner?.isTypingEnabled())
     }
 
     @Override
@@ -147,8 +159,11 @@ class WorkflowBinding extends Binding  {
             super.getVariable(name)
         }
         catch( MissingPropertyException e ) {
+            if( owner?.isTypingEnabled() )
+                throw e
+
             if( !meta )
-                 throw e
+                throw e
 
             def component = getComponent0(name)
             if( component )
@@ -169,9 +184,11 @@ class WorkflowBinding extends Binding  {
             source = source[0]
         }
 
-        owner.session.outputs[name] = source instanceof DataflowWriteChannel
-            ? source
-            : CH.value(source)
+        owner.session.outputs[name] =
+            source instanceof ChannelImpl ? source.getSource() :
+            source instanceof ValueImpl ? source.getSource() :
+            source instanceof DataflowWriteChannel ? source :
+            CH.value(source)
     }
 
 }

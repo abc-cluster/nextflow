@@ -35,6 +35,11 @@ class ChannelNamespace {
         return new ChannelImpl(target)
     }
 
+    static ChannelImpl fromLineage(Map<String,?> params) {
+        final target = nextflow.Channel.fromLineage(params)
+        return new ChannelImpl(target)
+    }
+
     static ChannelImpl fromList(Collection items) {
         final target = CH.create()
         CH.emitAndClose(target, items as List)
@@ -42,18 +47,18 @@ class ChannelNamespace {
         return new ChannelImpl(target)
     }
 
+    static ChannelImpl fromPath(Map opts = null, String pattern) {
+        final target = nextflow.Channel.fromPath(opts, pattern)
+        return new ChannelImpl(target)
+    }
+
+    static ChannelImpl interval(String duration) {
+        final target = nextflow.Channel.interval(duration)
+        return new ChannelImpl(target)
+    }
+
     static ChannelImpl of(Object... items) {
-        final target = CH.create()
-        final values = new ArrayList<>()
-        for( final item : items ) {
-            if( item instanceof Range )
-                values.addAll(item)
-            else
-                values.add(item)
-        }
-        values.add(CH.stop())
-        CH.emitValues(target, values)
-        NodeMarker.addSourceNode('channel.of', target)
+        final target = nextflow.Channel.of(items)
         return new ChannelImpl(target)
     }
 
@@ -67,6 +72,11 @@ class ChannelNamespace {
         final target = CH.value(value)
         NodeMarker.addSourceNode('channel.value', target)
         return new ValueImpl(target)
+    }
+
+    static ChannelImpl watchPath(String filePattern, String events = 'create') {
+        final target = nextflow.Channel.watchPath(filePattern, events)
+        return new ChannelImpl(target)
     }
 
 }

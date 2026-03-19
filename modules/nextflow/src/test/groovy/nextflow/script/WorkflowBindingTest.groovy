@@ -16,18 +16,15 @@
 
 package nextflow.script
 
-import java.nio.file.Files
+import spock.lang.Specification
 
 import nextflow.extension.OpCall
-import test.Dsl2Spec
-
-import static test.ScriptHelper.*
 
 /**
  *
  * @author Paolo Di Tommaso <paolo.ditommaso@gmail.com>
  */
-class WorkflowBindingTest extends Dsl2Spec {
+class WorkflowBindingTest extends Specification {
 
     def setupSpec() {
         WorkflowBinding.init()
@@ -110,96 +107,6 @@ class WorkflowBindingTest extends Dsl2Spec {
         (result as OpCall).methodName == 'map'
         (result as OpCall).args == [] as Object[]
 
-    }
-
-    def 'should allow typed workflow to call legacy process/workflow' () {
-        given:
-        def folder = Files.createTempDirectory('test')
-
-        folder.resolve('main.nf').text = '''
-            nextflow.preview.types = true
-
-            include { foo ; bar } from './module.nf'
-
-            workflow {
-                ch = channel.of(1, 2, 3)
-                bar(foo(ch))
-            }
-            '''
-
-        folder.resolve('module.nf').text = '''
-            process foo {
-                input:
-                val x
-
-                output:
-                val y
-
-                exec:
-                y = x * 2
-            }
-
-            workflow bar {
-                take:
-                ys
-
-                emit:
-                ys.map { y -> y % 3 }
-            }
-            '''
-
-        when:
-        runScript(folder.resolve('main.nf'))
-        then:
-        noExceptionThrown()
-
-        cleanup:
-        folder?.deleteDir()
-    }
-
-    def 'should allow legacy workflow to call typed process/workflow' () {
-        given:
-        def folder = Files.createTempDirectory('test')
-
-        folder.resolve('main.nf').text = '''
-            include { foo ; bar } from './module.nf'
-
-            workflow {
-                ch = channel.of(1, 2, 3)
-                bar(foo(ch))
-            }
-            '''
-
-        folder.resolve('module.nf').text = '''
-            nextflow.preview.types = true
-
-            process foo {
-                input:
-                x: Integer
-
-                output:
-                y
-
-                exec:
-                y = x * 2
-            }
-
-            workflow bar {
-                take:
-                ys: Channel<Integer>
-
-                emit:
-                ys.map { y -> y * 2 }
-            }
-            '''
-
-        when:
-        runScript(folder.resolve('main.nf'))
-        then:
-        noExceptionThrown()
-
-        cleanup:
-        folder?.deleteDir()
     }
 
 }

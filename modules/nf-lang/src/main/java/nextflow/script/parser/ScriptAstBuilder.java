@@ -261,6 +261,7 @@ public class ScriptAstBuilder {
             var node = featureFlagDeclaration(ffac.featureFlagDeclaration());
             saveLeadingComments(node, ctx);
             moduleNode.addFeatureFlag(node);
+            this.typingEnabled = moduleNode.isTypingEnabled();
         }
 
         else if( ctx instanceof EnumDefAltContext edac ) {
@@ -353,13 +354,7 @@ public class ScriptAstBuilder {
         var result = ast( new FeatureFlagNode(name, value), ctx );
         if( !(value instanceof ConstantExpression) )
             collectSyntaxError(new SyntaxException("Feature flag value must be a literal value (number, string, true/false)", result));
-        checkPreviewTypes(result);
         return result;
-    }
-
-    private void checkPreviewTypes(FeatureFlagNode node) {
-        if( "nextflow.preview.types".equals(node.name) && node.value instanceof ConstantExpression ce )
-            typingEnabled = Boolean.TRUE.equals(ce.getValue());
     }
 
     private ParamBlockNode paramsDef(ParamsDefContext ctx) {
@@ -550,7 +545,7 @@ public class ScriptAstBuilder {
         else if( ctx.processTupleInput() != null ) {
             result = processTupleInput(ctx.processTupleInput());
         }
-        
+
         saveTrailingComment(result, ctx);
         return result;
     }

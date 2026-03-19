@@ -266,6 +266,8 @@ class ChannelImpl {
             }
         }
         final onComplete = {
+            if( first )
+                throw new ScriptRuntimeException("Operator `reduce` received an empty channel with no initial value -- make sure to provide an initial value if the channel might be empty")
             target.bind(result)
         }
         DataflowHelper.subscribeImpl(source, [onNext: onNext, onComplete: onComplete])
@@ -301,17 +303,13 @@ class ChannelImpl {
         NodeMarker.addOperatorNode("subscribe", [source], [])
     }
 
-    ChannelImpl unique() {
-        return unique({ v -> v })
-    }
-
-    ChannelImpl unique(Function<?,?> transform) {
+    ChannelImpl unique(Function<?,?> transform = null) {
         final source = getReadChannel()
         final target = CH.create()
         final history = new HashSet<>()
 
         final onNext = { value ->
-            final key = transform.call(value)
+            final key = transform != null ? transform.call(value) : value
             if( !history.contains(key) ) {
                 history.add(key)
                 target << value

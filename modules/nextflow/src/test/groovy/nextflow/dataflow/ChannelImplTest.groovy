@@ -117,6 +117,24 @@ class ChannelImplTest extends Specification {
         result.val == CH.stop()
     }
 
+    def testCrossError() {
+
+        when:
+        runDataflow {
+            channel.of(1, 2, 3).cross('not-a-channel')
+        }
+        then:
+        thrown(ScriptRuntimeException)
+
+        when:
+        runDataflow {
+            def ch = channel.of( record(id: 1) )
+            ch.cross(b: channel.of(1, 2, 3))
+        }
+        then:
+        thrown(ScriptRuntimeException)
+    }
+
     def testFilter() {
 
         when:
@@ -161,12 +179,9 @@ class ChannelImplTest extends Specification {
         result.val == 3
         result.val == 6
         result.val == CH.stop()
-    }
-
-    def testFlatMapWithTuples() {
 
         when:
-        def result = runDataflow {
+        result = runDataflow {
             channel.of( [1,2], ['a','b'] ).flatMap { vals -> [vals, vals.reverse()] }
         }
         then:
@@ -175,12 +190,9 @@ class ChannelImplTest extends Specification {
         result.val == ['a','b']
         result.val == ['b','a']
         result.val == CH.stop()
-    }
-
-    def testFlatMapDefault() {
 
         when:
-        def result = runDataflow {
+        result = runDataflow {
             channel.of( [1,2], ['a',['b','c']] ).flatMap()
         }
         then:
@@ -191,6 +203,24 @@ class ChannelImplTest extends Specification {
         result.val == CH.stop()
     }
 
+    def testFlatMapError() {
+
+        when:
+        runScript(
+            '''\
+            nextflow.preview.types = true
+
+            workflow {
+                channel.of(tuple(1,2)).flatMap()
+            }
+            '''
+        )
+        def sess = Global.session as Session
+        then:
+        sess.isAborted()
+        sess.error.message.contains 'Operator `flatMap` expected an Iterable but received a tuple'
+    }
+
     def testGroupBy() {
 
         when:
@@ -198,7 +228,6 @@ class ChannelImplTest extends Specification {
             channel.of([1,'a'], [1,'b'], [2,'x'], [3, 'q'], [1,'c'], [2, 'y'], [3, 'q'])
                 .groupBy()
         }
-
         then:
         result.val == tuple(1, new HashBag<>(['a', 'b', 'c']))
         result.val == tuple(2, new HashBag<>(['x', 'y']))
@@ -210,12 +239,86 @@ class ChannelImplTest extends Specification {
             channel.of([1,'a'], [1,'b'], [2,'x'], [3, 'q'], [1,'d'], [1,'c'], [2, 'y'], [1,'f'])
                 .groupBy()
         }
-
         then:
         result.val == tuple(1, new HashBag<>(['a', 'b', 'd', 'c', 'f']))
         result.val == tuple(2, new HashBag<>(['x', 'y']))
         result.val == tuple(3, new HashBag<>(['q']))
         result.val == CH.stop()
+
+        when:
+        result = runDataflow {
+            channel.of([1, 2, 'a'], [2, 1, 'x'], [1, 2, 'b'])
+                .groupBy()
+                .collect()
+        }
+        then:
+        def bag = result.val
+        bag.size() == 2
+        bag.contains( tuple(1, new HashBag<>(['a', 'b'])) )
+        bag.contains( tuple(2, new HashBag<>(['x'])) )
+    }
+
+    def testGroupByError() {
+
+        when:
+        runScript(
+            '''\
+            nextflow.preview.types = true
+
+            workflow {
+                channel.of(1, 2, 3).groupBy()
+            }
+            '''
+        )
+        def sess = Global.session as Session
+        then:
+        sess.isAborted()
+        sess.error.message.contains 'Operator `groupBy` expected a 3-tuple of (key, size, value) or a 2-tuple of (key, value)'
+
+        when:
+        runScript(
+            '''\
+            nextflow.preview.types = true
+
+            workflow {
+                channel.of([1, 1, 'a'], [1, 1, 'b']).groupBy()
+            }
+            '''
+        )
+        sess = Global.session as Session
+        then:
+        sess.isAborted()
+        sess.error.message.contains 'Operator `groupBy` received too many values for grouping key: 1'
+
+        when:
+        runScript(
+            '''\
+            nextflow.preview.types = true
+
+            workflow {
+                channel.of([1, 2, 'a'], [1, 3, 'b']).groupBy()
+            }
+            '''
+        )
+        sess = Global.session as Session
+        then:
+        sess.isAborted()
+        sess.error.message.contains 'Operator `groupBy` received inconsistent group size for key 1'
+
+        when:
+        runScript(
+            '''\
+            nextflow.preview.types = true
+
+            workflow {
+                channel.of([1, 3, 'a'], [1, 3, 'b']).groupBy()
+            }
+            '''
+        )
+        sess = Global.session as Session
+        then:
+        sess.isAborted()
+        sess.error.message.contains 'Operator `groupBy` received too few values for grouping keys: 1'
     }
 
     def testJoin() {
@@ -288,6 +391,23 @@ class ChannelImplTest extends Specification {
         then:
         def e = thrown(ScriptRuntimeException)
         e.message == 'Operator `join` requires the `by` option'
+
+        when:
+        runScript(
+            '''\
+            nextflow.preview.types = true
+
+            workflow {
+                left = channel.of(1, 2, 3)
+                right = channel.of(1, 2, 3)
+                left.join(right, by: 'id')
+            }
+            '''
+        )
+        def sess = Global.session as Session
+        then:
+        sess.isAborted()
+        sess.error.message.contains 'Operator `join` expected a record'
     }
 
     def testMap() {
@@ -334,6 +454,16 @@ class ChannelImplTest extends Specification {
         !('c' in result)
     }
 
+    def testMixError() {
+
+        when:
+        runDataflow {
+            channel.of(1, 2, 3).mix('not-a-channel')
+        }
+        then:
+        thrown(ScriptRuntimeException)
+    }
+
     def testReduce() {
 
         when:
@@ -349,15 +479,25 @@ class ChannelImplTest extends Specification {
         }
         then:
         result.getVal() == 99
-
-        when:
-        result = runDataflow {
-            channel.empty().reduce { a, e -> a += e }
-        }
-        then:
-        result.getVal() == null
     }
 
+    def testReduceError() {
+
+        when:
+        runScript(
+            '''\
+            nextflow.preview.types = true
+
+            workflow {
+                channel.empty().reduce { a, e -> a += e }
+            }
+            '''
+        )
+        def sess = Global.session as Session
+        then:
+        sess.isAborted()
+        sess.error.message.contains "Operator `reduce` received an empty channel with no initial value"
+    }
 
     def testReduceWithSeed() {
 
@@ -485,6 +625,29 @@ class ChannelImplTest extends Specification {
         result.val == CH.stop()
     }
 
+    def testView() {
+
+        when:
+        def result = runDataflow {
+            channel.of(1,2,3).view()
+        }
+        then:
+        result.val == 1
+        result.val == 2
+        result.val == 3
+        result.val == CH.stop()
+
+        when:
+        result = runDataflow {
+            channel.of(1,2,3).view { v -> "value: $v" }
+        }
+        then:
+        result.val == 1
+        result.val == 2
+        result.val == 3
+        result.val == CH.stop()
+    }
+
     def 'should propagate errors to the session' () {
         given:
         def sess
@@ -505,38 +668,6 @@ class ChannelImplTest extends Specification {
         then:
         sess.isAborted()
         sess.error.message == "failed!"
-
-        when:
-        runScript(
-            '''\
-            nextflow.preview.types = true
-
-            workflow {
-                channel.of(1, 2, 3).groupBy()
-            }
-            '''
-        )
-        sess = Global.session as Session
-        then:
-        sess.isAborted()
-        sess.error.message.contains 'Operator `groupBy` expected a 3-tuple of (key, size, value) or a 2-tuple of (key, value)'
-
-        when:
-        runScript(
-            '''\
-            nextflow.preview.types = true
-
-            workflow {
-                left = channel.of(1, 2, 3)
-                right = channel.of(1, 2, 3)
-                left.join(right, by: 'id')
-            }
-            '''
-        )
-        sess = Global.session as Session
-        then:
-        sess.isAborted()
-        sess.error.message.contains 'Operator `join` expected a record'
     }
 
 }

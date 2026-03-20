@@ -43,7 +43,7 @@ class CrossOpV2 {
     }
 
     DataflowWriteChannel apply() {
-        final target = CH.create()
+        final target = CH.createBy(left)
         DataflowHelper.subscribeImpl( left,  handler(target, 0) )
         DataflowHelper.subscribeImpl( right, handler(target, 1) )
         return target
@@ -88,7 +88,8 @@ class CrossOpV2 {
         if( count > 0 )
             return
 
-        target << CH.stop()
+        if( !CH.isValue(target) )
+            target << CH.stop()
     }
 
 }

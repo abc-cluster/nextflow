@@ -266,8 +266,11 @@ class ChannelImpl {
             }
         }
         final onComplete = {
-            if( first )
-                throw new ScriptRuntimeException("Operator `reduce` received an empty channel with no initial value -- make sure to provide an initial value if the channel might be empty")
+            if( first ) {
+                def e = new ScriptRuntimeException("Operator `reduce` received an empty channel with no initial value -- make sure to provide an initial value if the channel might be empty")
+                target.bindError(e)
+                throw e
+            }
             target.bind(result)
         }
         DataflowHelper.subscribeImpl(source, [onNext: onNext, onComplete: onComplete])

@@ -105,6 +105,17 @@ class ValueImpl {
     }
 
     ValueImpl view(Closure transform = null) {
+        return view(Collections.emptyMap(), transform)
+    }
+
+    ValueImpl view(Map opts, Closure transform = null) {
+        final newLine = opts.newLine != false
+        final tag = opts.tag as String
+        final dumpNames = session.getDumpChannels() ?: []
+        final enabled = tag == null || (
+            dumpNames.collect { it.replace('*', '.*') }.any { (tag ?: '') ==~ /$it/ }
+        )
+
         final target = CH.value()
 
         final onNext = { value ->

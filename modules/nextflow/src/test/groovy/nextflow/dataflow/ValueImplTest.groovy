@@ -18,9 +18,11 @@ package nextflow.dataflow
 
 import nextflow.Channel
 import nextflow.dataflow.ChannelNamespace as channel
+import nextflow.exception.ScriptRuntimeException
 import spock.lang.Specification
 import spock.lang.Timeout
 
+import static nextflow.Nextflow.tuple
 import static test.ScriptHelper.runDataflow
 /**
  *
@@ -28,6 +30,24 @@ import static test.ScriptHelper.runDataflow
  */
 @Timeout(10)
 class ValueImplTest extends Specification {
+
+    def testCross() {
+
+        when:
+        def result = runDataflow {
+            channel.value(1).cross(channel.value(2))
+        }
+        then:
+        result.val == tuple(1, 2)
+        result.val == tuple(1, 2)  // ValueImpl is re-readable
+
+        when:
+        runDataflow {
+            channel.value(1).cross(channel.of(1, 2, 3))
+        }
+        then:
+        thrown(ScriptRuntimeException)
+    }
 
     def testFlatMap() {
         when:
@@ -38,6 +58,15 @@ class ValueImplTest extends Specification {
         result.val == 1
         result.val == 2
         result.val == 3
+        result.val == Channel.STOP
+
+        when:
+        result = runDataflow {
+            channel.value([1,2]).flatMap { v -> [v, v.reverse()] }
+        }
+        then:
+        result.val == [1,2]
+        result.val == [2,1]
         result.val == Channel.STOP
     }
 
@@ -62,8 +91,18 @@ class ValueImplTest extends Specification {
     }
 
     def testSubscribe() {
+
         when:
         def count = 0
+        runDataflow {
+            channel.value(42).subscribe { count++ }
+        }
+        sleep 100
+        then:
+        count == 1
+
+        when:
+        count = 0
         def done = false
         runDataflow {
             channel.value(1).subscribe(
@@ -75,6 +114,25 @@ class ValueImplTest extends Specification {
         then:
         done
         count == 1
+    }
+
+    def testView() {
+
+        when:
+        def result = runDataflow {
+            channel.value(42).view()
+        }
+        then:
+        result.val == 42
+        result.val == 42  // ValueImpl is re-readable
+
+        when:
+        result = runDataflow {
+            channel.value(42).view { v -> "value: $v" }
+        }
+        then:
+        result.val == 42
+        result.val == 42
     }
 
 }

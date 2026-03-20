@@ -78,7 +78,6 @@ process FASTQC {
 
 - Good, because input block syntax mirrors the top-level `record` definition.
 - Bad, because two different notations for the same concept in the same process definition.
-- Bad, because `Record { ... }` block syntax only exists in input declarations — it is not a general-purpose construct.
 
 ### Option 2: Block syntax for both inputs and outputs
 

@@ -215,7 +215,7 @@ THese restrictions are designed to make Nextflow code more consistent across the
 
 This aspect of the language is becoming more salient as code is increasingly read and written by AI agents. Agents need many examples of a programming language in order to use it effectively, so when a niche language has many syntax variants or syntax that deviates heavily from the common patterns used by other languages, it hurts the agent's ability to read and write code in that language.
 
-## How to distinguish between typed and legacy workflows?
+## Distinguishing between typed and legacy workflows
 
 Static typing has been introduced as multiple independent features:
 
@@ -238,32 +238,39 @@ Most of the features for static typing are *purely additive* -- they are new con
 
 The `nextflow.enable.types` feature flag will replace the preview flag once the feature set is stable, and it will likely be used indefinitely to distinguish between typed and legacy code. It would only be removed if the support for legacy syntax was removed, which is unlikely since DSL2 has been the standard Nextflow syntax for many years.
 
-However, while typed processes look significantly different from legacy processes, typed workflows do not. Typed workflows look very similar but have slightly different semantics. A feature flag may not be enough to signal the difference to users and agents, even if it is sufficient for the compiler and language server.
-
-### Option 2: Use `nextflow.enable.types` to enable all static typing
-
-Now that the entire language has been updated to support static typing, it could make sense to provide it as a single feature controlled by a single feature flag:
+Unlike typed processes, typed workflows look very similar to legacy workflows despite having different semantics. Therefore, to help distinguish between typed and legacy workflows, the use of type annotations should be allowed only for typed workflows:
 
 ```groovy
-// "dynamically typed" code
-// nextflow.enable.types = true
+// legacy workflow
+workflow greet {
+    take:
+    greetings
 
-// "statically typed" code
-nextflow.enable.types = true
+    main:
+    messages = greetings.map { v -> "$v world!" }
+
+    emit:
+    messages
+}
 ```
 
-Even though these features can be adopted independently in principle, they are designed to work together, and in practice it is difficult to adopt one feature without the others:
+```groovy
+// typed workflow
+nextflow.preview.types = true
 
-- Migrating a large pipeline to workflow outputs is very difficult without also migrating to typed processes and record types.
-- Adopting type annotations (e.g. for workflow takes and emits) can provide some basic documentation and validation, but most workflow logic still cannot be effectively validated by the type checker without typed processes.
+workflow greet {
+    take:
+    greetings: Channel<String>
 
-Enabling all static typing features via `nextflow.enable.types` would establish a clear boundary between *statically typed* code and *dynamically typed* code. This way, the poor distinction between typed workflows and legacy workflows is made up by the clear distinction of type annotations, record types, etc in the same context.
+    main:
+    messages = greetings.map { v -> "$v world!" }
 
-Since type annotations and typed parameters were introduced in Nextflow 25.10 as stable, requiring a feature flag for them in 26.04 would be a breaking change. However, this break might be acceptable for now since these features are still new and many users are waiting for full static typing anyway. These features could be allowed with a warning in 26.04 to ease the transition.
+    emit:
+    messages: Channel<String>
+}
+```
 
-See also: static compilation in Groovy via `@CompileStatic`
-
-### Option 3: Enable new operators via `include` declaration
+### Option 2: Enable new operators via `include` declaration
 
 Since operators are methods of the `Channel` type, new operators can be understood as a new `Channel` type / `channel` namespace. Therefore, the new operators could be introduced simply by including a different version of `Channel` or `channel`:
 
@@ -279,7 +286,7 @@ This approach is similar to using a feature flag, but it more clearly expresses 
 
 Either way, the feature flag will still be needed to enable typed processes, so users will end up using both the feature flag and include across their scripts. This might be more complicated than just using a feature flag.
 
-### Option 4: Use new operator names in typed workflows
+### Option 3: Use new operator names in typed workflows
 
 Typed workflows could simply rename all operators that were changed. This would clearly distinguish typed workflows from legacy workflows.
 
@@ -310,7 +317,7 @@ Ironically, the new operators are more true to their names than the old ones:
 
 Ultimately, new operator names alone might not be enough to signal the other aspects of typed workflows, such as the removal of many other operators and syntax patterns.
 
-### Option 5: Replace `process` and `workflow` with `task` and `flow`
+### Option 4: Replace `process` and `workflow` with `task` and `flow`
 
 The key issue is that typed processes and typed workflows modify existing concepts (processes and workflows) rather than adding to them. Instead, we could make these features purely additive by introducing them as new top-level concepts:
 
@@ -327,6 +334,142 @@ flow RNASEQ { /* ... */ }
 This approach would make the distinction very clear. However, this change would be a significant break, since *processes* and *workflows* are long-standing and fundamental ideas in Nextflow. Users think about Nextflow pipelines in terms of *processes* and *workflows*, so introducing new terminology would be confusing.
 
 See also: [Prefect](https://www.prefect.io/prefect/open-source) (uses `@task` and `@flow` in their DSL)
+
+## Interoperability between typed and legacy workflows
+
+Typed and legacy workflows use different underlying dataflow types:
+
+- **Legacy workflows (v1)** use raw GPars types: `DataflowBroadcast` (queue channel) and `DataflowVariable` (value channel).
+
+- **Typed workflows (v2)** use wrapper types: `ChannelImpl` (wraps a `DataflowBroadcast`) and `ValueImpl` (wraps a `DataflowVariable`). These wrappers implement the new operators and integrate with the type system.
+
+While a given script must be entirely typed or entirely legacy (controlled by the `nextflow.preview.types` flag), **typed and legacy workflows can call each other across different scripts**. This interoperability enables incremental migration -- individual scripts can be migrated to static typing without having to update the entire pipeline at once.
+
+### Normalization at call sites
+
+When a workflow calls another workflow, the Nextflow runtime automatically converts dataflow arguments and return values to the appropriate type for each side of the call site.
+
+Normalization can occur in either direction:
+
+- **v2 → v1 (unwrap)**: when passing typed channels to a legacy component, `ChannelImpl` / `ValueImpl` are unwrapped to the underlying `DataflowBroadcast` / `DataflowVariable`.
+
+- **v1 → v2 (wrap)**: when passing legacy channels to a typed component, `DataflowBroadcast` / `DataflowVariable` are wrapped as `ChannelImpl` / `ValueImpl`.
+
+The normalization is applied twice per call: once to the arguments (converted to match the *callee's* semantics), and once to the return value (converted to match the *caller's* semantics).
+
+### Example: typed workflow calling a legacy workflow
+
+**`legacy.nf`**
+```groovy
+workflow LEGACY_ALIGN {
+    take:
+    reads // DataflowBroadcast
+
+    main:
+    ALIGN(reads)
+
+    emit:
+    bam = ALIGN.out // DataflowBroadcast
+}
+```
+
+**`typed.nf`**
+```groovy
+nextflow.preview.types = true
+
+include { LEGACY_ALIGN } from './legacy'
+
+workflow {
+    reads = channel.fromPath('*.fastq') // ChannelImpl
+
+    // `reads` is unwrapped to DataflowBroadcast when passed to LEGACY_ALIGN
+    // The return value (DataflowBroadcast) is wrapped to ChannelImpl
+    bam = LEGACY_ALIGN(reads)
+
+    bam.view() // ChannelImpl
+}
+```
+
+### Example: legacy workflow calling a typed workflow
+
+**`typed.nf`**
+```groovy
+nextflow.preview.types = true
+
+workflow TYPED_TRIM {
+    take:
+    reads: Channel<Record>
+
+    main:
+    ch_trimmed = TRIM(reads)
+
+    emit:
+    trimmed = ch_trimmed
+}
+```
+
+**`legacy.nf`**
+```groovy
+include { TYPED_TRIM } from './typed'
+
+workflow {
+    reads = Channel.fromPath('*.fastq') // DataflowBroadcast
+
+    // `reads` is wrapped as ChannelImpl when passed to TYPED_TRIM
+    // The return value (ChannelImpl) is unwrapped to DataflowBroadcast
+    trimmed = TYPED_TRIM(reads)
+
+    trimmed.view() // DataflowBroadcast
+}
+```
+
+### Process and workflow outputs (`ChannelOut`)
+
+Procsses and workflows -- regardless of whether they are legacy or typed -- always return a `ChannelOut`, a specialized class that can contain one or more named outputs (`DataflowBroadcast` / `DataflowVariable`).
+
+When a `ChannelOut` is returned to a typed workflow, it is normalized as follows:
+
+- If the `ChannelOut` contains only one output, it is unwrapped to the underlying `DataflowBroadcast` / `DataflowVariable` and then wrapped as a `ChannelImpl` / `ValueImpl`.
+
+- If the `ChannelOut` contains multiple outputs, it is converted to a record (`RecordMap`), where each named output is wrapped as a `ChannelImpl` / `ValueImpl`.
+
+For example:
+
+**`legacy.nf`**
+```groovy
+workflow LEGACY_QC {
+    take:
+    reads
+
+    main:
+    FASTQC(reads)
+    MULTIQC(FASTQC.out)
+
+    emit:
+    fastqc = FASTQC.out     // DataflowBroadcast
+    multiqc = MULTIQC.out   // DataflowBroadcast
+}
+```
+
+**`typed.nf`**
+```groovy
+nextflow.preview.types = true
+
+include { LEGACY_QC } from './legacy'
+
+workflow {
+    reads = channel.fromPath('*.fastq')
+
+    // LEGACY_QC returns a ChannelOut with two outputs
+    // which is converted to a record:
+    //   Record { fastqc: ChannelImpl ; multiqc: ChannelImpl }
+    qc = LEGACY_QC(reads)
+
+    // RecordMap provides same semantics as ChannelOut
+    qc.fastqc.view()
+    qc.multiqc.view()
+}
+```
 
 ## Alternatives
 

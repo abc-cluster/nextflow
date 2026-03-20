@@ -169,30 +169,29 @@ These changes are intended to make these operators easy to use while enabling fi
 
 Legacy operators that are not supported in typed workflows can be migrated as follows:
 
-| Operator | Migration strategy |
-|---|---|
-| `branch`                        | Use `filter` and `map` for each branch instead |
-| `buffer`, `collate`             | Use `List::collate()` instead |
-| `collectFile`                   | Use `collect`, `groupBy`, and `Iterable::toSorted()` instead |
-| `combine`                       | Use `cross` or `join` instead |
-| `concat`                        | Use `mix` instead |
-| `count`, `max`, `min`, `sum`    | Use `collect` and the corresponding `Iterable` method instead |
-| `distinct` [^nondeterministic]  | Use `unique` instead |
-| `dump`                          | Use `view` instead (it will have the `tag` option) |
-| `first`, `last`, `randomSample`, `take` [^nondeterministic] | Use a list instead |
-| `flatten`                       | Use `flatMap` instead |
-| `ifEmpty`                       | Use `map` with `?:` instead |
-| `merge` [^nondeterministic]     | Use `join` instead |
-| `multiMap`                      | Use `map` instead |
-| `set`, `tap`                    | Use a regular assignment instead |
-| `splitCsv`, `splitFasta`, `splitFastq`, `splitJson`, `splitText` | Use `flatMap` with the equivalent `Path` method instead |
-| `countCsv`, `countFasta`, `countFastq`, `countJson`, `countLines` | Use `flatMap` with the equivalent `Path` method instead |
-| `toDouble`, `toFloat`, `toInteger`, `toLong` | Use `map` and the corresponding `String` method instead |
-| `toList`                        | Use `collect` instead |
-| `toSortedList`                  | Use `collect` and `Iterable::toSorted()` instead |
-| `transpose`                     | Use `flatMap` instead |
-
-[^nondeterministic]: This operator is non-deterministic -- you probably shouldn't be using it anyway.
+| Operator | Reason for removal | Migration strategy |
+|---|---|---|
+| `branch`                        | Redundant | Use `filter` and `map` for each branch instead |
+| `buffer`, `collate`             | Non-deterministic | Use `List::collate()` instead |
+| `collectFile`                   | Not statically typed | Use `collect`, `groupBy`, and `Iterable::toSorted()` instead |
+| `combine`                       | Not statically typed | Use `cross` or `join` instead |
+| `concat`                        | Redundant | Use `mix` instead |
+| `count`, `max`, `min`, `sum`    | Redundant, rarely used | Use `collect` and the corresponding `Iterable` method instead |
+| `distinct`                      | Non-deterministic | Use `unique` instead |
+| `dump`                          | Redundant | Use `view` with `tag` option instead |
+| `first`, `last`, `take`         | Non-deterministic | Use a list instead |
+| `flatten`                       | Not statically typed | Use `flatMap` instead |
+| `ifEmpty`                       | Not statically typed | Use `map` with `?:` instead |
+| `merge`                         | Non-deterministic | Use `join` instead |
+| `multiMap`                      | Redundant | Use `map` instead |
+| `randomSample`                  | Non-deterministic | - |
+| `set`, `tap`                    | Redundant | Use a regular assignment instead |
+| `splitCsv`, `splitFasta`, `splitFastq`, `splitJson`, `splitText` | Not statically typed | Use `flatMap` with the equivalent `Path` method instead |
+| `countCsv`, `countFasta`, `countFastq`, `countJson`, `countLines` | Not statically typed | Use `flatMap` with the equivalent `Path` method instead |
+| `toDouble`, `toFloat`, `toInteger`, `toLong` | Redundant, rarely used | Use `map` and the corresponding `String` method instead |
+| `toList`                        | Redundant | Use `collect` instead |
+| `toSortedList`                  | Redundant | Use `collect` and `Iterable::toSorted()` instead |
+| `transpose`                     | Not statically typed | Use `flatMap` instead |
 
 In most cases, a legacy operator can be rewritten in terms of existing operators and standard library functions. The accompanying migration guide provides detailed examples for each operator.
 

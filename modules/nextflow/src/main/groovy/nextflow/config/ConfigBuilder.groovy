@@ -568,6 +568,9 @@ class ConfigBuilder {
         if( cmdRun.outputDir )
             config.outputDir = cmdRun.outputDir
 
+        if( cmdRun.outputFormat )
+            config.outputFormat = cmdRun.outputFormat
+
         if( cmdRun.preview )
             config.preview = cmdRun.preview
 

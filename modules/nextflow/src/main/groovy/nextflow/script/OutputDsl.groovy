@@ -103,26 +103,39 @@ class OutputDsl {
         return opts
     }
 
-    private void printOutput(Session session, Map<String,Object> output) {
-        final sb = new StringBuilder("Outputs:\n")
-        for( final entry : output.entrySet() ) {
-            final outputValue = DumpHelper.deepConvertToString(entry.value)
+    private static void printOutput(Session session, Map<String,Object> output) {
+        final outputDir = session.outputDir.toUriString()
+        final sb = new StringBuilder()
+        sb.append("Outputs:\n")
+        sb.append('\n')
+        sb.append("  ${outputDir}\n")
+        for( final outputName : output.keySet() ) {
+            final outputValue = output[outputName]
             sb.append('\n')
             if( outputValue instanceof Collection ) {
-                sb.append("  ${entry.key}:\n")
-                for( final item : outputValue )
-                    sb.append("    - ${item}\n")
+                final items = outputValue as List
+                final maxItems = items.size() > 20 ? 10 : items.size()
+                sb.append("  ${outputName}:\n")
+                for( final item : items.subList(0, maxItems) )
+                    sb.append("    - ${normalizeOutput(item, outputDir)}")
+                if( maxItems < items.size() )
+                    sb.append("    - ... (${items.size() - maxItems} more items)\n")
             }
             else if( outputValue instanceof Map ) {
-                sb.append("  ${entry.key}:\n")
+                sb.append("  ${outputName}:\n")
                 for( final mapEntry : outputValue.entrySet() )
-                    sb.append("    ${mapEntry.key}: ${mapEntry.value}\n")
+                    sb.append("    ${mapEntry.key}: ${normalizeOutput(mapEntry.value, outputDir)}")
             }
             else {
-                sb.append("  ${entry.key}: ${outputValue}\n")
+                sb.append("  ${outputName}: ${normalizeOutput(outputValue, outputDir)}")
             }
         }
         session.printConsole(sb.toString())
+    }
+
+    private static String normalizeOutput(Object value, String outputDir) {
+        return DumpHelper.prettyPrintYaml(value, style: 'flow')
+            .replaceAll(outputDir + '/', '')
     }
 
     Map<String,Object> getOutput() {

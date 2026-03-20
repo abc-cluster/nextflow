@@ -119,7 +119,7 @@ class ProcessEntryHandler {
 
     private List<String> getProcessOutputsV1(ProcessConfigV1 config) {
         final output = config.getOutputs()
-        final names = output*.getChannelEmitName()
+        final names = output*.getChannelEmitName().findAll { it != null }
         if( output.isEmpty() )
             return Collections.emptyList()
         if( output.size() == 1 && names.isEmpty() )

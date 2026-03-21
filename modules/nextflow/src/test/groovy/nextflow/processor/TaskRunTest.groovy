@@ -575,7 +575,7 @@ class TaskRunTest extends Specification {
         isNative = task.isContainerNative()
         then:
         1 * task.processor.getExecutor() >> executor
-        1 * executor.isContainerNative() >> true
+        1 * executor.isContainerNative(task) >> true
         isNative
     }
 
@@ -821,8 +821,8 @@ class TaskRunTest extends Specification {
         when:
         def config = task.getContainerConfig()
         then:
-        1 * executor.containerConfigEngine() >> null
-        1 * executor.isContainerNative() >> false
+        1 * executor.containerConfigEngine(task) >> null
+        1 * executor.isContainerNative(task) >> false
         and:
         session.getContainerConfig(null) >> null
         and:
@@ -831,8 +831,8 @@ class TaskRunTest extends Specification {
         when:
         config = task.getContainerConfig()
         then:
-        1 * executor.containerConfigEngine() >> null
-        1 * executor.isContainerNative() >> false
+        1 * executor.containerConfigEngine(task) >> null
+        1 * executor.isContainerNative(task) >> false
         and:
         session.getContainerConfig(null) >> new PodmanConfig(registry:'xyz')
         and:

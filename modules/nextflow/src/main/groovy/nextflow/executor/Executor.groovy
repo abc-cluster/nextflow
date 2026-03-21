@@ -170,6 +170,19 @@ abstract class Executor {
     }
 
     /**
+     * Task-aware variant of {@link #isContainerNative()}.
+     * Executors that support per-task driver selection (e.g. mixed docker + HPC)
+     * can override this to return different values per task.
+     * Defaults to the task-agnostic {@link #isContainerNative()}.
+     *
+     * @param task The task being evaluated
+     * @return {@code true} when the executor manages containers natively for this specific task
+     */
+    boolean isContainerNative(TaskRun task) {
+        return isContainerNative()
+    }
+
+    /**
      * Determines which container engine settings in the nextflow config file
      * will be used by this executor e.g. {@code 'docker'}, {@code 'singularity'}, etc.
      *
@@ -181,6 +194,19 @@ abstract class Executor {
      */
     String containerConfigEngine() {
         return null
+    }
+
+    /**
+     * Task-aware variant of {@link #containerConfigEngine()}.
+     * Executors that support per-task driver selection can override this
+     * to return different container engine configs per task.
+     * Defaults to the task-agnostic {@link #containerConfigEngine()}.
+     *
+     * @param task The task being evaluated
+     * @return The container engine name for this specific task, or null
+     */
+    String containerConfigEngine(TaskRun task) {
+        return containerConfigEngine()
     }
 
     /**

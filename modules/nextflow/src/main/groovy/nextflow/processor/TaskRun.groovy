@@ -768,13 +768,14 @@ class TaskRun implements Cloneable {
         // get the container engine expected to be used by this executor
         final sess = this.getProcessor().getSession()
         final exe = this.getProcessor().getExecutor()
-        final eng = exe.containerConfigEngine()
+        // use task-aware methods to allow per-task driver resolution
+        final eng = exe.containerConfigEngine(this)
         // when 'eng' is null the setting for the current engine marked as 'enabled' will be used
         final result
                 = sess.getContainerConfig(eng)
                 ?: new DockerConfig([:])
         // if a configuration is found is expected to enabled by default
-        if( exe.isContainerNative() ) {
+        if( exe.isContainerNative(this) ) {
             result.setEnabled(true)
         }
         return result
@@ -789,7 +790,7 @@ class TaskRun implements Cloneable {
     }
 
     boolean isContainerNative() {
-        return processor.executor?.isContainerNative() ?: false
+        return processor.executor?.isContainerNative(this) ?: false
     }
 
     boolean isArray() {
